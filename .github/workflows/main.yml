@@ -1,10 +1,10 @@
-name: Build & Release (Windows .exe, macOS .dmg)
+name: Build & Release (Windows .exe + macOS .dmg)
 
 on:
   push:
     tags:
-      - "v*"          # e.g. v1.0.0
-  workflow_dispatch:   # allow manual runs too
+      - "v*"            # e.g. v1.0.0
+  workflow_dispatch:     # allow manual run
 
 jobs:
   build-windows:
@@ -24,21 +24,29 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Build .exe with PyInstaller
+      - name: Build .exe with PyInstaller (onefile, no console)
         run: |
-          pyinstaller --noconsole --windowed --name "Photo Audit" photo_audit_gui.py
+          pyinstaller --onefile --windowed --name "PhotoAudit" photo_audit_gui.py
 
-      - name: Copy artifact
+      - name: Show dist contents (debug)
+        shell: bash
+        run: ls -la dist
+
+      - name: Verify exe exists
+        shell: bash
+        run: test -f "dist/PhotoAudit.exe"
+
+      - name: Collect artifact
         shell: bash
         run: |
           mkdir -p artifacts
-          cp "dist/Photo Audit.exe" "artifacts/Photo-Audit-Windows.exe"
+          cp "dist/PhotoAudit.exe" "artifacts/PhotoAudit-Windows.exe"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows-exe
-          path: artifacts/Photo-Audit-Windows.exe
+          path: artifacts/PhotoAudit-Windows.exe
           if-no-files-found: error
 
   build-macos:
@@ -60,7 +68,14 @@ jobs:
 
       - name: Build .app with PyInstaller
         run: |
-          pyinstaller --windowed --name "Photo Audit" photo_audit_gui.py
+          pyinstaller --windowed --name "PhotoAudit" photo_audit_gui.py
+
+      - name: Show dist contents (debug)
+        run: |
+          ls -la dist
+
+      - name: Verify app exists
+        run: test -d "dist/PhotoAudit.app"
 
       - name: Install create-dmg
         run: brew install create-dmg
@@ -69,20 +84,20 @@ jobs:
         run: |
           mkdir -p artifacts
           create-dmg \
-            --volname "Photo Audit" \
+            --volname "PhotoAudit" \
             --window-pos 200 120 \
             --window-size 600 400 \
             --icon-size 100 \
-            --icon "Photo Audit.app" 175 200 \
+            --icon "PhotoAudit.app" 175 200 \
             --app-drop-link 425 200 \
-            "artifacts/Photo-Audit-macOS.dmg" \
-            "dist/Photo Audit.app"
+            "artifacts/PhotoAudit-macOS.dmg" \
+            "dist/PhotoAudit.app"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: macos-dmg
-          path: artifacts/Photo-Audit-macOS.dmg
+          path: artifacts/PhotoAudit-macOS.dmg
           if-no-files-found: error
 
   release:
@@ -106,7 +121,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            release/Photo-Audit-Windows.exe
-            release/Photo-Audit-macOS.dmg
+            release/PhotoAudit-Windows.exe
+            release/PhotoAudit-macOS.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
