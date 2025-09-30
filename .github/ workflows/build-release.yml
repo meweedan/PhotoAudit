@@ -1,0 +1,112 @@
+name: Build & Release (Windows .exe, macOS .dmg)
+
+on:
+  push:
+    tags:
+      - "v*"          # e.g. v1.0.0
+  workflow_dispatch:   # allow manual runs too
+
+jobs:
+  build-windows:
+    name: Build Windows EXE
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build .exe with PyInstaller
+        run: |
+          pyinstaller --noconsole --windowed --name "Photo Audit" photo_audit_gui.py
+
+      - name: Copy artifact
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          cp "dist/Photo Audit.exe" "artifacts/Photo-Audit-Windows.exe"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe
+          path: artifacts/Photo-Audit-Windows.exe
+          if-no-files-found: error
+
+  build-macos:
+    name: Build macOS DMG
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build .app with PyInstaller
+        run: |
+          pyinstaller --windowed --name "Photo Audit" photo_audit_gui.py
+
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Create .dmg
+        run: |
+          mkdir -p artifacts
+          create-dmg \
+            --volname "Photo Audit" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --icon "Photo Audit.app" 175 200 \
+            --app-drop-link 425 200 \
+            "artifacts/Photo-Audit-macOS.dmg" \
+            "dist/Photo Audit.app"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: artifacts/Photo-Audit-macOS.dmg
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-exe
+          path: ./release
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-dmg
+          path: ./release
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/Photo-Audit-Windows.exe
+            release/Photo-Audit-macOS.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
